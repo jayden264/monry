@@ -11,12 +11,17 @@ param(
     [ValidateSet("patch", "minor", "major")][string]$Bump = "patch",
     [switch]$NoTag
 )
-$ErrorActionPreference = "Stop"
+# git writes progress to stderr; Windows PowerShell 5.1 would treat that as an error under "Stop".
+$ErrorActionPreference = "Continue"
+function Invoke-Git {
+    & git @args 2>&1 | ForEach-Object { "$_" } | Write-Host
+    if ($LASTEXITCODE -ne 0) { throw "git $($args -join ' ') failed ($LASTEXITCODE)" }
+}
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-git add -A
-if (git status --porcelain) { git commit -m $Message } else { Write-Host "Nothing to commit." }
-git push origin main
+Invoke-Git add -A
+if (git status --porcelain) { Invoke-Git commit -m $Message } else { Write-Host "Nothing to commit." }
+Invoke-Git push origin main
 
 if ($NoTag) { return }
 
@@ -29,6 +34,6 @@ switch ($Bump) {
     default { $p = @($p[0], $p[1], ($p[2] + 1)) }
 }
 $tag = "v$($p -join '.')"
-git tag $tag
-git push origin $tag
+Invoke-Git tag $tag
+Invoke-Git push origin $tag
 Write-Host "Released $tag - build status: gh run list -L 1"
