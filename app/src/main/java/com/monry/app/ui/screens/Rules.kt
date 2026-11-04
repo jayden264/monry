@@ -65,6 +65,7 @@ import com.monry.app.ui.components.SurfaceCard
 import com.monry.app.ui.components.TextAction
 import com.monry.app.ui.components.TimePickerRow
 import com.monry.app.ui.components.enterAnim
+import com.monry.app.ui.components.itemMotion
 import com.monry.app.ui.components.pressable
 import com.monry.app.ui.theme.M
 import com.monry.app.ui.theme.T
@@ -125,7 +126,7 @@ fun RulesScreen(onNew: () -> Unit, onEdit: (Long) -> Unit, onHistory: (Long) -> 
                     )
                 }
                 itemsIndexed(s.rules, key = { _, r -> r.id }) { i, r ->
-                    RuleCard(r, s.accountNames[r.accountId], Modifier.enterAnim(i),
+                    RuleCard(r, s.accountNames[r.accountId], itemMotion().enterAnim(i),
                         onClick = { onEdit(r.id) }, onHistory = { onHistory(r.id) },
                         onToggle = { vm.togglePause(r) { toast(it) } })
                 }

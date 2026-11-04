@@ -7,7 +7,16 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -165,7 +174,8 @@ private fun Root(container: AppContainer) {
     }
 }
 
-private const val PUSH_MS = 380
+private val Expo = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+private const val PUSH_MS = 480
 
 @Composable
 private fun AppNav() {
@@ -181,24 +191,28 @@ private fun AppNav() {
         restoreState = true
     }
 
-    val fadeIn: (NavBackStackEntry) -> EnterTransition = { if (reduce) EnterTransition.None else fadeIn(tween(PUSH_MS)) }
-    val fadeOut: (NavBackStackEntry) -> ExitTransition = { if (reduce) ExitTransition.None else fadeOut(tween(PUSH_MS / 2)) }
-    // Detail pages slide in from the right while the page underneath dims back slightly.
-    val pushIn: (NavBackStackEntry) -> EnterTransition = {
-        if (reduce) EnterTransition.None else slideInHorizontally(tween(PUSH_MS)) { it / 4 } + fadeIn(tween(PUSH_MS))
-    }
-    val popOut: (NavBackStackEntry) -> ExitTransition = {
-        if (reduce) ExitTransition.None else slideOutHorizontally(tween(PUSH_MS)) { it / 4 } + fadeOut(tween(PUSH_MS))
-    }
+    // Tabs: the new page rises a few dp as it fades in, the old one just fades away (same-level switch).
+    val tabIn: EnterTransition = if (reduce) EnterTransition.None else
+        fadeIn(tween(380, 70, Expo)) + slideInVertically(tween(520, easing = Expo)) { it / 48 }
+    val tabOut: ExitTransition = if (reduce) ExitTransition.None else fadeOut(tween(140))
+    // Detail pages: slide in from the right; the page underneath drifts left a little and dims (parallax depth).
+    val pushIn: EnterTransition = if (reduce) EnterTransition.None else
+        slideInHorizontally(tween(PUSH_MS, easing = Expo)) { it / 3 } + fadeIn(tween(PUSH_MS * 2 / 3, easing = Expo))
+    val pushUnder: ExitTransition = if (reduce) ExitTransition.None else
+        slideOutHorizontally(tween(PUSH_MS, easing = Expo)) { -it / 8 } + fadeOut(tween(PUSH_MS, easing = Expo))
+    val popUnder: EnterTransition = if (reduce) EnterTransition.None else
+        slideInHorizontally(tween(PUSH_MS, easing = Expo)) { -it / 8 } + fadeIn(tween(PUSH_MS, easing = Expo))
+    val popOut: ExitTransition = if (reduce) ExitTransition.None else
+        slideOutHorizontally(tween(PUSH_MS, easing = Expo)) { it / 3 } + fadeOut(tween(PUSH_MS / 2))
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             NavHost(
                 nav, startDestination = Tab.Home.route, Modifier.fillMaxSize(),
-                enterTransition = { if (isTabRoute(targetState.destination.route)) fadeIn(this.targetState) else pushIn(this.targetState) },
-                exitTransition = { fadeOut(this.initialState) },
-                popEnterTransition = { fadeIn(this.targetState) },
-                popExitTransition = { popOut(this.initialState) }
+                enterTransition = { if (isTabRoute(targetState.destination.route)) tabIn else pushIn },
+                exitTransition = { if (isTabRoute(targetState.destination.route)) tabOut else pushUnder },
+                popEnterTransition = { if (isTabRoute(targetState.destination.route)) tabIn else popUnder },
+                popExitTransition = { popOut }
             ) {
                 composable(Tab.Home.route) {
                     HomeScreen(
@@ -235,8 +249,8 @@ private fun AppNav() {
         }
         AnimatedVisibility(
             visible = isTab,
-            enter = if (reduce) EnterTransition.None else slideInVertically { it },
-            exit = if (reduce) ExitTransition.None else slideOutVertically { it }
+            enter = if (reduce) EnterTransition.None else slideInVertically(tween(PUSH_MS, easing = Expo)) { it },
+            exit = if (reduce) ExitTransition.None else slideOutVertically(tween(PUSH_MS, easing = Expo)) { it }
         ) { BottomBar(route, ::goTab) }
     }
 }
@@ -245,17 +259,36 @@ private fun isTabRoute(r: String?) = Tab.entries.any { it.route == r }
 
 @Composable
 private fun BottomBar(current: String?, onTab: (Tab) -> Unit) {
+    val reduce = LocalReduceMotion.current
+    val idx = Tab.entries.indexOfFirst { it.route == current }
+    // Keep the last real tab so the dot does not jump while the bar slides away on detail pages.
+    var shown by remember { mutableIntStateOf(maxOf(idx, 0)) }
+    LaunchedEffect(idx) { if (idx >= 0) shown = idx }
+    val pos by animateFloatAsState(shown.toFloat(), if (reduce) snap() else spring(dampingRatio = 0.72f, stiffness = 420f), label = "tabDot")
+    val dotPx = with(LocalDensity.current) { 4.dp.toPx() }
+    val ink = M.c.ink
+
     Column(Modifier.fillMaxWidth().background(M.c.bg)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(M.c.line))
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().height(60.dp)) {
-            Tab.entries.forEach { t ->
-                val on = t.route == current
-                Box(Modifier.weight(1f).fillMaxSize().pressable { onTab(t) }, contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        MText(t.label, style = T.label, color = if (on) M.c.ink else M.c.inkFaint)
-                        Box(Modifier.padding(top = 5.dp).size(4.dp).clip(RoundedCornerShape(2.dp)).background(if (on) M.c.ink else androidx.compose.ui.graphics.Color.Transparent))
+        Box(Modifier.fillMaxWidth().navigationBarsPadding().height(60.dp)) {
+            Row(Modifier.fillMaxSize()) {
+                Tab.entries.forEachIndexed { i, t ->
+                    val color by animateColorAsState(
+                        if (i == shown) M.c.ink else M.c.inkFaint, if (reduce) snap() else tween(260, easing = Expo), label = "tabLabel"
+                    )
+                    Box(Modifier.weight(1f).fillMaxSize().pressable { onTab(t) }, contentAlignment = Alignment.Center) {
+                        MText(t.label, Modifier.padding(bottom = 8.dp), T.label, color)
                     }
                 }
+            }
+            // One dot that glides between tabs instead of a dot per tab appearing and disappearing.
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val tabW = with(LocalDensity.current) { maxWidth.toPx() } / Tab.entries.size
+                Box(
+                    Modifier.align(Alignment.BottomStart).padding(bottom = 12.dp).size(4.dp)
+                        .graphicsLayer { translationX = (pos + 0.5f) * tabW - dotPx / 2 }
+                        .clip(RoundedCornerShape(2.dp)).background(ink)
+                )
             }
         }
     }

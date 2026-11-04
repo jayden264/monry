@@ -56,6 +56,8 @@ import com.monry.app.ui.components.SectionLabel
 import com.monry.app.ui.components.TextAction
 import com.monry.app.ui.components.TiltState
 import com.monry.app.ui.components.enterAnim
+import com.monry.app.ui.components.itemMotion
+import androidx.compose.foundation.border
 import com.monry.app.ui.components.pressable
 import com.monry.app.ui.components.tilt3d
 import com.monry.app.ui.theme.LocalReduceMotion
@@ -188,7 +190,7 @@ fun HomeScreen(onSettings: () -> Unit, onLedger: () -> Unit, onEditTx: (Long) ->
             items(s.recent, key = { it.id }) { tx ->
                 TxRow(
                     tx, names[tx.accountId], onClick = { if (tx.source == TxSource.MANUAL) onEditTx(tx.id) },
-                    modifier = Modifier.padding(horizontal = 24.dp).enterAnim(s.recent.indexOf(tx) + 2),
+                    modifier = itemMotion().padding(horizontal = 24.dp).enterAnim(s.recent.indexOf(tx) + 2),
                     subtitle = Fmt.dayLabel(LocalDate.ofEpochDay(tx.date), s.today)
                 )
             }
@@ -246,6 +248,7 @@ private fun AssetHero(total: Long, accounts: Long, invest: Long, scroll: () -> F
                     cameraDistance = 14f * density
                 }
                 .clip(shape).background(c.heroBg)
+                .border(1.dp, c.heroInk.copy(alpha = 0.08f), shape)
         ) {
             Box(
                 Modifier.fillMaxSize().background(

@@ -142,10 +142,11 @@ fun ErrorText(message: String?, modifier: Modifier = Modifier) {
 
 @Composable
 fun SurfaceCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(
-        modifier.clip(RoundedCornerShape(22.dp)).background(M.c.surface)
-            .border(BorderStroke(1.dp, M.c.line), RoundedCornerShape(22.dp))
-    ) { content() }
+    // Nested shell + core with concentric radii (26 = 22 + 4 padding), so the card reads as a tray holding a plate.
+    val inner = RoundedCornerShape(22.dp)
+    Box(modifier.clip(RoundedCornerShape(26.dp)).background(M.c.surfaceAlt.copy(alpha = 0.55f)).padding(4.dp)) {
+        Box(Modifier.fillMaxWidth().clip(inner).background(M.c.surface).border(BorderStroke(1.dp, M.c.line), inner)) { content() }
+    }
 }
 
 enum class ButtonKind { Primary, Ghost, Danger }

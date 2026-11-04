@@ -35,6 +35,7 @@ import com.monry.app.ui.components.PageHeader
 import com.monry.app.ui.components.Segmented
 import com.monry.app.ui.components.RollingMoney
 import com.monry.app.ui.components.enterAnim
+import com.monry.app.ui.components.itemMotion
 import com.monry.app.ui.components.pressable
 import com.monry.app.ui.theme.M
 import com.monry.app.ui.theme.T
@@ -111,6 +112,7 @@ fun LedgerScreen(onBack: () -> Unit, onEditTx: (Long) -> Unit) {
                     items(list, key = { it.id }) { tx ->
                         TxRow(
                             tx, s.accountNames[tx.accountId],
+                            modifier = itemMotion(),
                             onClick = {
                                 if (tx.source == TxSource.MANUAL) onEditTx(tx.id) else toast("自动生成的流水不能编辑")
                             }

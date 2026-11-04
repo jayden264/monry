@@ -4,7 +4,9 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.snap
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
@@ -68,14 +70,28 @@ fun Modifier.enterAnim(index: Int = 0): Modifier = composed {
     LaunchedEffect(Unit) {
         if (!reduce) {
             delay(index.coerceIn(0, 8) * 45L)
-            progress.animateTo(1f, tween(520, easing = Expo))
+            progress.animateTo(1f, tween(600, easing = Expo))
         }
     }
     val rise = with(LocalDensity.current) { 28.dp.toPx() }
     graphicsLayer {
-        alpha = progress.value
-        translationY = (1f - progress.value) * rise
+        val p = progress.value
+        alpha = p
+        translationY = (1f - p) * rise
+        scaleX = 0.985f + 0.015f * p
+        scaleY = 0.985f + 0.015f * p
     }
+}
+
+/** Items fade in, glide to their new place when the list changes, and fade out on removal. */
+@Composable
+fun LazyItemScope.itemMotion(): Modifier {
+    if (LocalReduceMotion.current) return Modifier
+    return Modifier.animateItem(
+        fadeInSpec = tween(380, easing = Expo),
+        placementSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+        fadeOutSpec = tween(180)
+    )
 }
 
 /** 0 -> [target] on first composition (bars, progress), then follows changes. */

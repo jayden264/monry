@@ -43,6 +43,7 @@ import com.monry.app.ui.components.SurfaceCard
 import com.monry.app.ui.components.TextAction
 import com.monry.app.ui.components.TiltState
 import com.monry.app.ui.components.enterAnim
+import com.monry.app.ui.components.itemMotion
 import com.monry.app.ui.components.enterFlip
 import com.monry.app.ui.components.pressable
 import com.monry.app.ui.components.rememberGrow
@@ -90,7 +91,7 @@ fun InvestScreen(onNew: () -> Unit, onOpen: (Long) -> Unit) {
             if (s.ended.isNotEmpty()) {
                 item { SectionLabel("已结束", Modifier.padding(top = 12.dp)) }
                 itemsIndexed(s.ended, key = { _, it -> it.id }) { i, snap ->
-                    Column(Modifier.fillMaxWidth().enterAnim(i).pressable { onOpen(snap.id) }) {
+                    Column(itemMotion().fillMaxWidth().enterAnim(i).pressable { onOpen(snap.id) }) {
                         Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 MText(snap.name, style = T.body)
