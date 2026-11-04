@@ -25,4 +25,5 @@ abstract class MonryDatabase : RoomDatabase() {
     abstract fun transactions(): TransactionDao
     abstract fun rules(): RuleDao
     abstract fun investments(): InvestmentDao
+    abstract fun backup(): BackupDao
 }

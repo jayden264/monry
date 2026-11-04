@@ -2,6 +2,8 @@
 
 package com.monry.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +21,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import android.net.Uri
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,6 +82,23 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
         }
 
     fun delete(id: Long, onError: (String) -> Unit, onOk: () -> Unit) = run(onError, onOk) { c.ledger.deleteAccount(id) }
+
+    fun export(open: () -> java.io.OutputStream, onError: (String) -> Unit, onOk: () -> Unit) = run(onError, onOk) {
+        try {
+            open().use { c.backup.export(it, System.currentTimeMillis()) }
+        } catch (e: java.io.IOException) {
+            throw UserError("写入文件失败：" + (e.message ?: ""))
+        }
+    }
+
+    fun import(open: () -> java.io.InputStream, onError: (String) -> Unit, onOk: () -> Unit) = run(onError, onOk) {
+        try {
+            open().use { c.backup.import(it) }
+            c.onboarded = true
+        } catch (e: java.io.IOException) {
+            throw UserError("读取文件失败：" + (e.message ?: ""))
+        }
+    }
 }
 
 /** accountId == null: create; otherwise edit that account. */
@@ -90,6 +111,14 @@ fun SettingsScreen(onBack: () -> Unit) {
     val toast = LocalToast.current
     var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var creating by rememberSaveable { mutableStateOf(false) }
+    var pendingImport by rememberSaveable { mutableStateOf<String?>(null) }
+    val resolver = LocalContext.current.contentResolver
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        if (uri != null) vm.export({ resolver.openOutputStream(uri, "wt") ?: throw java.io.IOException("无法打开文件") }, { toast(it) }) { toast("备份已导出") }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) pendingImport = uri.toString()
+    }
 
     Column(Modifier.fillMaxSize()) {
         PageHeader("设置", onBack = onBack)
@@ -113,8 +142,28 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             MText("点按账户可修改名称、类型，或把当前余额直接校准为任意金额。", Modifier.padding(top = 12.dp), T.caption, M.c.inkSoft)
             Spacer(Modifier.height(36.dp))
+            SectionLabel("数据备份")
+            MText("账户、流水、定时规则和投资都会导出为一个文件。卸载应用会清除本机数据，请定期导出并保存到手机之外的地方（网盘、电脑）。", style = T.caption, color = M.c.inkSoft)
+            Spacer(Modifier.height(14.dp))
+            MButton("导出备份", {
+                val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))
+                exportLauncher.launch("monry-backup-$stamp.json")
+            }, Modifier.fillMaxWidth())
+            Spacer(Modifier.height(12.dp))
+            MButton("从备份恢复", { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }, Modifier.fillMaxWidth(), ButtonKind.Ghost)
+            Spacer(Modifier.height(36.dp))
             SectionLabel("关于")
             MText("Monry 1.0 · 所有数据仅保存在本机。金额以「分」为单位的整数存储与计算，不使用浮点数。", style = T.caption, color = M.c.inkSoft)
+        }
+    }
+
+    pendingImport?.let { uriText ->
+        MDialog("从备份恢复", { pendingImport = null }, "覆盖并恢复", {
+            val uri = Uri.parse(uriText)
+            pendingImport = null
+            vm.import({ resolver.openInputStream(uri) ?: throw java.io.IOException("无法打开文件") }, { toast(it) }) { toast("已恢复备份") }
+        }) {
+            MText("这会用备份文件覆盖当前所有数据（账户、流水、规则、投资），无法撤销。建议先导出一份当前备份。", style = T.body, color = M.c.inkSoft)
         }
     }
 
