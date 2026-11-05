@@ -1,5 +1,6 @@
 package com.monry.app.data
 
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 
@@ -15,10 +16,12 @@ import androidx.room.RoomDatabase
         RecurringRuleEntity::class,
         RuleExecutionEntity::class,
         InvestmentEntity::class,
-        TrancheEntity::class
+        TrancheEntity::class,
+        ContractEntity::class
     ],
-    version = 1,
-    exportSchema = true
+    version = 2,
+    exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)] // v2 only adds the contracts table
 )
 abstract class MonryDatabase : RoomDatabase() {
     abstract fun accounts(): AccountDao
@@ -26,4 +29,5 @@ abstract class MonryDatabase : RoomDatabase() {
     abstract fun rules(): RuleDao
     abstract fun investments(): InvestmentDao
     abstract fun backup(): BackupDao
+    abstract fun contracts(): ContractDao
 }

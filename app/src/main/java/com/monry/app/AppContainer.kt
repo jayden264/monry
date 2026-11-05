@@ -9,6 +9,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.monry.app.data.BackupRepository
+import com.monry.app.data.ContractRepository
 import com.monry.app.data.InvestmentRepository
 import com.monry.app.data.LedgerRepository
 import com.monry.app.data.MonryDatabase
@@ -28,6 +29,7 @@ class AppContainer(context: Context) {
     val recurring = RecurringRepository(db)
     val investments = InvestmentRepository(db)
     val backup = BackupRepository(db)
+    val contracts = ContractRepository(db)
     val processor = RecurringProcessor(RoomRecurringStore(db))
     val prefs = context.getSharedPreferences("monry", Context.MODE_PRIVATE)
 

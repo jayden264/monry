@@ -65,6 +65,8 @@ import androidx.compose.ui.platform.LocalContext
 import com.monry.app.ui.components.MText
 import com.monry.app.ui.components.pressable
 import com.monry.app.ui.screens.AddTxScreen
+import com.monry.app.ui.screens.ContractNewScreen
+import com.monry.app.ui.screens.ContractScreen
 import com.monry.app.ui.screens.HomeScreen
 import com.monry.app.ui.screens.InvestDetailScreen
 import com.monry.app.ui.screens.InvestNewScreen
@@ -237,13 +239,24 @@ private fun AppNav() {
                 composable("rule-history/{id}", listOf(navArgument("id") { type = NavType.LongType })) {
                     RuleHistoryScreen(it.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
                 }
+                composable("contract-new/{id}", listOf(navArgument("id") { type = NavType.LongType })) {
+                    ContractNewScreen(it.arguments!!.getLong("id"), onBack = { nav.popBackStack() }, onCreated = { cid ->
+                        nav.navigate("contract/$cid") { popUpTo("contract-new/{id}") { inclusive = true } }
+                    })
+                }
+                composable("contract/{id}", listOf(navArgument("id") { type = NavType.LongType })) {
+                    ContractScreen(it.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
+                }
                 composable("invest-new") {
                     InvestNewScreen(onBack = { nav.popBackStack() }, onCreated = { id ->
                         nav.navigate("invest/$id") { popUpTo("invest-new") { inclusive = true } }
                     })
                 }
                 composable("invest/{id}", listOf(navArgument("id") { type = NavType.LongType })) {
-                    InvestDetailScreen(it.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
+                    InvestDetailScreen(
+                        it.arguments!!.getLong("id"), onBack = { nav.popBackStack() },
+                        onNewContract = { inv -> nav.navigate("contract-new/$inv") }, onContract = { cid -> nav.navigate("contract/$cid") }
+                    )
                 }
             }
         }

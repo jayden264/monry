@@ -96,6 +96,27 @@ interface RuleDao {
 }
 
 @Dao
+interface ContractDao {
+    @Query("SELECT * FROM contracts WHERE investmentId = :investmentId ORDER BY createdAt DESC")
+    fun observeFor(investmentId: Long): Flow<List<ContractEntity>>
+
+    @Query("SELECT * FROM contracts WHERE id = :id")
+    fun observe(id: Long): Flow<ContractEntity?>
+
+    @Query("SELECT * FROM contracts WHERE id = :id")
+    suspend fun get(id: Long): ContractEntity?
+
+    @Insert
+    suspend fun insert(c: ContractEntity): Long
+
+    @Update
+    suspend fun update(c: ContractEntity)
+
+    @Query("DELETE FROM contracts WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface InvestmentDao {
     @Transaction
     @Query("SELECT * FROM investments ORDER BY status, startEpochDay DESC, id DESC")

@@ -121,6 +121,33 @@ data class TrancheEntity(
     @ColumnInfo(name = "epochDay") val epochDay: Long
 )
 
+/** A signed (or signable) investment contract. Terms are a snapshot; later edits to the investment do not change it. */
+@Entity(tableName = "contracts", indices = [Index("investmentId")])
+data class ContractEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val investmentId: Long,
+    val subject: String,
+    val partyAName: String,
+    val partyAId: String,
+    val partyBName: String,
+    val partyBId: String,
+    val principal: Long,
+    val rateBp: Int,
+    val mode: InterestMode,
+    val startEpochDay: Long,
+    val termMonths: Int?,
+    val payment: String,
+    val extra: String,
+    val createdAt: Long,
+    /** Epoch seconds when the second signature was added; non-null means sealed. */
+    val signedAt: Long? = null,
+    val sigA: ByteArray? = null,
+    val sigB: ByteArray? = null,
+    val fingerprint: String? = null
+) {
+    val sealed: Boolean get() = fingerprint != null
+}
+
 data class InvestmentWithTranches(
     @Embedded val investment: InvestmentEntity,
     @Relation(parentColumn = "id", entityColumn = "investmentId")

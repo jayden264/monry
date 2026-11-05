@@ -17,6 +17,7 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.InputStream
+import java.util.Base64
 import java.io.OutputStream
 
 /** Raw table access used only for backup/restore. Not part of the schema. */
@@ -28,6 +29,7 @@ interface BackupDao {
     @Query("SELECT * FROM rule_executions") suspend fun executions(): List<RuleExecutionEntity>
     @Query("SELECT * FROM investments") suspend fun investments(): List<InvestmentEntity>
     @Query("SELECT * FROM investment_tranches") suspend fun tranches(): List<TrancheEntity>
+    @Query("SELECT * FROM contracts") suspend fun contracts(): List<ContractEntity>
 
     @Insert suspend fun insertAccounts(l: List<AccountEntity>)
     @Insert suspend fun insertTransactions(l: List<TransactionEntity>)
@@ -35,6 +37,8 @@ interface BackupDao {
     @Insert suspend fun insertExecutions(l: List<RuleExecutionEntity>)
     @Insert suspend fun insertInvestments(l: List<InvestmentEntity>)
     @Insert suspend fun insertTranches(l: List<TrancheEntity>)
+    @Insert suspend fun insertContracts(l: List<ContractEntity>)
+    @Query("DELETE FROM contracts") suspend fun clearContracts()
 
     @Query("DELETE FROM rule_executions") suspend fun clearExecutions()
     @Query("DELETE FROM investment_tranches") suspend fun clearTranches()
@@ -50,7 +54,8 @@ data class BackupData(
     val rules: List<RecurringRuleEntity>,
     val executions: List<RuleExecutionEntity>,
     val investments: List<InvestmentEntity>,
-    val tranches: List<TrancheEntity>
+    val tranches: List<TrancheEntity>,
+    val contracts: List<ContractEntity> = emptyList()
 )
 
 /** Pure JSON <-> entity mapping. Money stays integer minor units, so a round trip is exact. */
@@ -61,6 +66,9 @@ object BackupCodec {
     private fun JSONObject.int(k: String) = getInt(k)
     private fun JSONObject.longOrNull(k: String) = if (isNull(k)) null else getLong(k)
     private fun JSONObject.intOrNull(k: String) = if (isNull(k)) null else getInt(k)
+    private fun JSONObject.stringOrNull(k: String) = if (isNull(k)) null else getString(k)
+    private fun JSONObject.bytesOrNull(k: String) = if (isNull(k)) null else Base64.getDecoder().decode(getString(k))
+    private fun ByteArray?.b64(): Any = this?.let { Base64.getEncoder().encodeToString(it) } ?: JSONObject.NULL
 
     private fun <T> JSONArray.mapObjects(f: (JSONObject) -> T): List<T> = (0 until length()).map { f(getJSONObject(it)) }
     private fun <T> List<T>.toArray(f: (T) -> JSONObject) = JSONArray().also { a -> forEach { a.put(f(it)) } }
@@ -101,6 +109,15 @@ object BackupCodec {
         put("tranches", d.tranches.toArray {
             JSONObject().put("id", it.id).put("investmentId", it.investmentId).put("amount", it.amount).put("epochDay", it.epochDay)
         })
+        put("contracts", d.contracts.toArray {
+            JSONObject().put("id", it.id).put("investmentId", it.investmentId).put("subject", it.subject)
+                .put("partyAName", it.partyAName).put("partyAId", it.partyAId).put("partyBName", it.partyBName)
+                .put("partyBId", it.partyBId).put("principal", it.principal).put("rateBp", it.rateBp)
+                .put("mode", it.mode.name).put("startEpochDay", it.startEpochDay)
+                .put("termMonths", it.termMonths ?: JSONObject.NULL).put("payment", it.payment).put("extra", it.extra)
+                .put("createdAt", it.createdAt).put("signedAt", it.signedAt ?: JSONObject.NULL)
+                .put("sigA", it.sigA.b64()).put("sigB", it.sigB.b64()).put("fingerprint", it.fingerprint ?: JSONObject.NULL)
+        })
     }.toString()
 
     /** Throws [IllegalArgumentException] for anything that is not a Monry backup this version understands. */
@@ -138,6 +155,16 @@ object BackupCodec {
                 },
                 tranches = root.getJSONArray("tranches").mapObjects {
                     TrancheEntity(it.long("id"), it.long("investmentId"), it.long("amount"), it.long("epochDay"))
+                },
+                // Absent in backups made before contracts existed.
+                contracts = (root.optJSONArray("contracts") ?: JSONArray()).mapObjects {
+                    ContractEntity(
+                        it.long("id"), it.long("investmentId"), it.getString("subject"), it.getString("partyAName"),
+                        it.getString("partyAId"), it.getString("partyBName"), it.getString("partyBId"), it.long("principal"),
+                        it.int("rateBp"), InterestMode.valueOf(it.getString("mode")), it.long("startEpochDay"),
+                        it.intOrNull("termMonths"), it.getString("payment"), it.getString("extra"), it.long("createdAt"),
+                        it.longOrNull("signedAt"), it.bytesOrNull("sigA"), it.bytesOrNull("sigB"), it.stringOrNull("fingerprint")
+                    )
                 }
             )
         } catch (e: JSONException) {
@@ -152,7 +179,7 @@ class BackupRepository(private val db: MonryDatabase) {
     /** Writes a consistent snapshot of every table to [out]. */
     suspend fun export(out: OutputStream, nowMillis: Long) {
         val data = db.withTransaction {
-            BackupData(dao.accounts(), dao.transactions(), dao.rules(), dao.executions(), dao.investments(), dao.tranches())
+            BackupData(dao.accounts(), dao.transactions(), dao.rules(), dao.executions(), dao.investments(), dao.tranches(), dao.contracts())
         }
         val text = BackupCodec.encode(data, nowMillis)
         withContext(Dispatchers.IO) { out.bufferedWriter(Charsets.UTF_8).use { it.write(text) } }
@@ -171,10 +198,11 @@ class BackupRepository(private val db: MonryDatabase) {
         }
         try {
             db.withTransaction {
-                dao.clearExecutions(); dao.clearTranches(); dao.clearTransactions()
+                dao.clearContracts(); dao.clearExecutions(); dao.clearTranches(); dao.clearTransactions()
                 dao.clearRules(); dao.clearInvestments(); dao.clearAccounts()
                 dao.insertAccounts(data.accounts); dao.insertRules(data.rules); dao.insertInvestments(data.investments)
                 dao.insertTransactions(data.transactions); dao.insertExecutions(data.executions); dao.insertTranches(data.tranches)
+                dao.insertContracts(data.contracts)
             }
         } catch (e: android.database.SQLException) {
             throw UserError("备份文件内容不一致，未做任何改动")

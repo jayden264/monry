@@ -58,6 +58,9 @@ import com.monry.app.ui.components.SectionLabel
 import com.monry.app.ui.components.Segmented
 import com.monry.app.ui.components.TextAction
 import com.monry.app.ui.components.enterAnim
+import com.monry.app.ui.components.pressable
+import com.monry.app.ui.appContainer
+import androidx.compose.runtime.remember
 import com.monry.app.ui.theme.M
 import com.monry.app.ui.theme.T
 import kotlinx.coroutines.flow.SharingStarted
@@ -120,10 +123,12 @@ class InvestDetailViewModel(private val c: AppContainer, private val id: Long) :
 private enum class Dialog { None, TopUp, Redeem, Edit }
 
 @Composable
-fun InvestDetailScreen(id: Long, onBack: () -> Unit) {
+fun InvestDetailScreen(id: Long, onBack: () -> Unit, onNewContract: (Long) -> Unit, onContract: (Long) -> Unit) {
     val vm = appViewModel(key = "inv$id") { InvestDetailViewModel(it, id) }
     val state by vm.state.collectAsStateWithLifecycle()
     val toast = LocalToast.current
+    val contractRepo = appContainer().contracts
+    val contracts by remember(id) { contractRepo.forInvestment(id) }.collectAsStateWithLifecycle(emptyList())
     var dialog by rememberSaveable { mutableStateOf(Dialog.None) }
 
     Column(Modifier.fillMaxSize()) {
@@ -169,6 +174,19 @@ fun InvestDetailScreen(id: Long, onBack: () -> Unit) {
                 }
                 Hairline()
             }
+            Spacer(Modifier.height(28.dp))
+            SectionLabel("合同")
+            contracts.forEach { k ->
+                Column(Modifier.fillMaxWidth().pressable { onContract(k.id) }) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                        MText(k.partyAName + " ↔ " + k.partyBName, Modifier.weight(1f), T.body)
+                        MText(if (k.sealed) "已签署" else "待签名", style = T.caption, color = if (k.sealed) M.c.accent else M.c.inkSoft)
+                    }
+                    Hairline()
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            MButton("生成投资合同", { onNewContract(id) }, Modifier.fillMaxWidth(), ButtonKind.Ghost)
             Spacer(Modifier.height(28.dp))
             if (snap.isActive) {
                 MButton("追加投资", { dialog = Dialog.TopUp }, Modifier.fillMaxWidth(), ButtonKind.Ghost)
